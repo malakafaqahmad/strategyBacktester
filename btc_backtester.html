@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>NeoChart — BTC Backtester</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- CSV OVERLAY -->
+<div id="csv-overlay">
+  <div id="csv-box">
+    <h2>⬡ NEOCHART</h2>
+    <p>BTC Replay Backtester · Load the Kaggle 1-min CSV<br>
+    <span style="color:var(--text2)">bitstampUSD_1-min_data_*.csv · columns: Timestamp, Open, High, Low, Close, Volume_BTC</span></p>
+    <div id="csv-drop">
+      <div class="dico">📂</div>
+      <div style="font-size:11px">Drop CSV here or click to browse</div>
+    </div>
+    <input type="file" id="file-input" accept=".csv">
+    <button id="demo-btn">▶ Load Demo Data (3 000 synthetic candles)</button>
+    <div id="load-progress">
+      <div class="lp-text" id="lp-text">Reading…</div>
+      <div class="lp-bar"><div class="lp-fill" id="lp-fill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">NEO</div>
+  <div class="sep"></div>
+  <div style="font-size:12px;font-weight:700">BTC/USD</div>
+  <div id="cur-price" style="font-size:14px;font-weight:700;color:var(--accent);margin-left:4px">—</div>
+  <div id="cur-chg" class="up" style="font-size:10px;padding:2px 5px;border-radius:3px;margin-left:2px">—</div>
+  <div class="sep"></div>
+  <button class="tf-btn active" data-tf="1">1m</button>
+  <button class="tf-btn" data-tf="5">5m</button>
+  <button class="tf-btn" data-tf="15">15m</button>
+  <button class="tf-btn" data-tf="30">30m</button>
+  <button class="tf-btn" data-tf="60">1h</button>
+  <button class="tf-btn" data-tf="240">4h</button>
+  <button class="tf-btn" data-tf="1440">1d</button>
+  <div class="sep"></div>
+
+  <!-- REPLAY CONTROLS -->
+  <div id="replay-bar" class="disabled">
+    <span class="rp-label">Replay</span>
+    <input type="datetime-local" id="replay-date-input" title="Set replay start date/time">
+    <button id="btn-set-start" title="Set this date as replay start point">SET START</button>
+    <div class="rp-sep"></div>
+    <!-- step back 10 -->
+    <div class="rb" id="btn-back10" title="Back 10 candles">«</div>
+    <!-- step back 1 -->
+    <div class="rb" id="btn-back1" title="Back 1 candle">‹</div>
+    <!-- play/pause -->
+    <div class="rb" id="btn-play" title="Auto-play">▶</div>
+    <!-- step fwd 1 -->
+    <div class="rb" id="btn-fwd1" title="Forward 1 candle">›</div>
+    <!-- step fwd 10 -->
+    <div class="rb" id="btn-fwd10" title="Forward 10 candles">»</div>
+    <!-- fwd 50 -->
+    <div class="rb" id="btn-fwd50" title="Forward 50 candles">>>|</div>
+    <div class="rp-sep"></div>
+    <span class="rp-label">Speed</span>
+    <select id="step-size-select">
+      <option value="200">0.2s</option>
+      <option value="400" selected>0.4s</option>
+      <option value="800">0.8s</option>
+      <option value="1500">1.5s</option>
+      <option value="3000">3s</option>
+    </select>
+    <div class="rp-sep"></div>
+    <span id="replay-cursor-label">—</span>
+    <div id="replay-progress"><div id="replay-fill"></div></div>
+  </div>
+
+  <div class="spacer"></div>
+  <div style="font-size:9px;color:var(--text2);display:flex;align-items:center;gap:5px">
+    <span style="width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block" class="blink"></span>
+    BACKTESTER
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- LEFT TOOLBAR -->
+  <div id="toolbar">
+    <div class="tool-btn active" data-tool="cursor"><span>✛</span><div class="tip">Cursor (V)</div></div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" data-tool="hline"><span>—</span><div class="tip">H-Line (H)</div></div>
+    <div class="tool-btn" data-tool="vline"><span>|</span><div class="tip">V-Line</div></div>
+    <div class="tool-btn" data-tool="tline"><span>╱</span><div class="tip">Trend Line (T)</div></div>
+    <div class="tool-btn" data-tool="ray"><span>→</span><div class="tip">Ray</div></div>
+    <div class="tool-btn" data-tool="fib"><span>ℱ</span><div class="tip">Fibonacci (F)</div></div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" data-tool="rect"><span>▭</span><div class="tip">Rectangle (R)</div></div>
+    <div class="tool-btn" data-tool="measure"><span>↔</span><div class="tip">Measure (M)</div></div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" data-tool="long"><span style="color:var(--green)">▲</span><div class="tip">Long Position (L)</div></div>
+    <div class="tool-btn" data-tool="short"><span style="color:var(--red)">▼</span><div class="tip">Short Position (S)</div></div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" id="btn-clear-draws" title="Clear All Drawings"><span style="color:var(--red)">✕</span><div class="tip">Clear All</div></div>
+  </div>
+
+  <!-- CHART WRAPPER -->
+  <div id="chart-wrapper">
+    <div id="ohlcv-info">
+      <span class="lbl">O</span><span class="ci-o" id="ci-o">—</span>
+      <span class="lbl">H</span><span class="ci-h" id="ci-h">—</span>
+      <span class="lbl">L</span><span class="ci-l" id="ci-l">—</span>
+      <span class="lbl">C</span><span class="ci-c" id="ci-c">—</span>
+      <span class="lbl">V</span><span class="ci-v" id="ci-v">—</span>
+      <span id="ci-date">—</span>
+    </div>
+    <div id="chart-row">
+      <div id="canvas-area">
+        <canvas id="chart-canvas"></canvas>
+        <canvas id="overlay-canvas"></canvas>
+      </div>
+      <div id="price-axis"><canvas id="price-axis-canvas"></canvas></div>
+    </div>
+    <div id="vol-row">
+      <div id="vol-area"><canvas id="vol-canvas"></canvas></div>
+      <div id="vol-axis"></div>
+    </div>
+    
+    <!-- EDITOR PANEL -->
+    <div id="editor-panel" style="display:none; height:240px; background:var(--bg1); border-top:1px solid var(--border); flex-direction:row; overflow:hidden; flex-shrink:0;">
+      <div style="flex:1.2; display:flex; flex-direction:column; border-right:1px solid var(--border);">
+        <div style="height:28px; background:var(--bg2); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 10px;">
+          <span style="font-size:9px; letter-spacing:1px; color:var(--text2); text-transform:uppercase; font-weight:bold;">PineJS Strategy Editor</span>
+          <button id="btn-run-script" style="background:var(--accent); color:#000; border:none; border-radius:3px; padding:3px 10px; font-family:var(--font); font-size:10px; font-weight:bold; cursor:pointer;">▶ Run Strategy</button>
+        </div>
+        <textarea id="script-textarea" style="flex:1; width:100%; background:var(--bg0); color:var(--text0); border:none; padding:10px; font-family:var(--font); font-size:11px; outline:none; resize:none; line-height:1.5;" spellcheck="false">// Example SMA Crossover Strategy
+// Buy when SMA(20) crosses above SMA(50)
+// Sell when SMA(20) crosses below SMA(50)
+
+var maFast = getSMA(20);
+var maSlow = getSMA(50);
+
+if (index > 0 && maFast[index] && maSlow[index]) {
+    var prevFast = maFast[index-1];
+    var prevSlow = maSlow[index-1];
+    var currFast = maFast[index];
+    var currSlow = maSlow[index];
+    
+    if (prevFast <= prevSlow && currFast > currSlow) {
+        api.buy({ sl: price * 0.98, tp: price * 1.04 });
+    }
+    else if (prevFast >= prevSlow && currFast < currSlow) {
+        api.sell({ sl: price * 1.02, tp: price * 0.96 });
+    }
+}</textarea>
+      </div>
+      
+      <div style="flex:1; display:flex; flex-direction:column;">
+        <div style="height:28px; background:var(--bg2); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 10px;">
+          <span style="font-size:9px; letter-spacing:1px; color:var(--text2); text-transform:uppercase; font-weight:bold;">Strategy Tester Results</span>
+          <label style="display:flex; align-items:center; gap:4px; font-size:9px; color:var(--text1); cursor:pointer;">
+            <input type="checkbox" id="chk-show-equity" style="cursor:pointer;"> Show Equity Curve
+          </label>
+        </div>
+        <div id="tester-console" style="flex:1; padding:10px; overflow-y:auto; font-family:var(--font); font-size:11px; color:var(--text1); line-height:1.6; background:var(--bg1);">
+          No strategy has been run yet. Write your Javascript logic and click "Run Strategy" to test.
+        </div>
+      </div>
+    </div>
+    
+    <div id="statusbar">
+      <span id="sb-range">—</span>
+      <div style="flex:1"></div>
+      <span id="sb-count">—</span>
+      <span id="sb-tf">1m</span>
+      <div style="flex:1"></div>
+      <span id="replay-status"></span>
+      <div style="flex:1"></div>
+      <button class="tf-btn" id="btn-toggle-editor" style="padding:2px 8px; margin-right:8px;">⚙️ Strategy Tester</button>
+      <span style="color:var(--text2)">Scroll=zoom · Drag=pan · ←→=step · Space=play</span>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+    <div class="psec">
+      <div class="ptitle">Trade Entry</div>
+      <div class="trade-side">
+        <div class="side-btn long active" id="side-long">▲ LONG</div>
+        <div class="side-btn short" id="side-short">▼ SHORT</div>
+      </div>
+      <div class="frow"><div class="flabel">Entry Price (blank = market)</div>
+        <input class="finput" id="f-entry" type="number" placeholder="current close" step="0.01"></div>
+      <div class="frow"><div class="flabel">Stop Loss</div>
+        <input class="finput" id="f-sl" type="number" placeholder="—" step="0.01"></div>
+      <div class="frow"><div class="flabel">Take Profit</div>
+        <input class="finput" id="f-tp" type="number" placeholder="—" step="0.01"></div>
+      <div class="frow"><div class="flabel">Size (USD)</div>
+        <input class="finput" id="f-size" type="number" value="1000" step="100"></div>
+      <button class="exec-btn long-btn" id="exec-btn">⬆ OPEN LONG</button>
+    </div>
+
+    <div class="psec" id="open-pos-sec" style="display:none">
+      <div class="ptitle">Open Position</div>
+      <div class="sgrid">
+        <div class="scard"><div class="slabel">Side</div><div class="sval neu" id="ps-side">—</div></div>
+        <div class="scard"><div class="slabel">Entry</div><div class="sval neu" id="ps-entry">—</div></div>
+        <div class="scard"><div class="slabel">Current</div><div class="sval neu" id="ps-cur">—</div></div>
+        <div class="scard"><div class="slabel">P&amp;L</div><div class="sval neu" id="ps-pnl">—</div></div>
+        <div class="scard"><div class="slabel">Stop Loss</div><div class="sval neu" id="ps-sl">—</div></div>
+        <div class="scard"><div class="slabel">Take Profit</div><div class="sval neu" id="ps-tp">—</div></div>
+      </div>
+      <button class="close-pos-btn" id="btn-close-pos">✕ Close Position at Market</button>
+    </div>
+
+    <div class="psec">
+      <div class="ptitle">Indicators</div>
+      <div id="active-indicators" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;"></div>
+      <button class="close-pos-btn" id="btn-add-indicator" style="margin-top:0; border-color:var(--accent); color:var(--accent); width:100%;">+ Add Indicator</button>
+    </div>
+
+    <div class="psec">
+      <div class="ptitle">Session Stats</div>
+      <div class="sgrid">
+        <div class="scard"><div class="slabel">Net P&amp;L</div><div class="sval neu" id="st-pnl">$0</div></div>
+        <div class="scard"><div class="slabel">Win Rate</div><div class="sval neu" id="st-wr">—</div></div>
+        <div class="scard"><div class="slabel">Trades</div><div class="sval neu" id="st-trades">0</div></div>
+        <div class="scard"><div class="slabel">Best</div><div class="sval pos" id="st-best">—</div></div>
+        <div class="scard"><div class="slabel">Worst</div><div class="sval neg" id="st-worst">—</div></div>
+        <div class="scard"><div class="slabel">Profit F.</div><div class="sval neu" id="st-pf">—</div></div>
+      </div>
+    </div>
+
+    <div class="psec" style="flex:1">
+      <div class="ptitle">Trade Log</div>
+      <div id="trade-log" style="max-height:320px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="cmi" id="ctx-long">▲ Open Long here</div>
+  <div class="cmi" id="ctx-short">▼ Open Short here</div>
+  <div class="cm-sep"></div>
+  <div class="cmi" id="ctx-hline">Add H-Line at price</div>
+  <div class="cmi" id="ctx-del" style="display:none">Delete Drawing</div>
+  <div class="cm-sep"></div>
+  <div class="cmi danger" id="ctx-clear-all">Clear All Drawings</div>
+</div>
+
+<!-- EDIT DRAWING MODAL -->
+<div id="edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1100; align-items:center; justify-content:center;">
+  <div style="background:var(--bg1); border:1px solid var(--border2); border-radius:6px; padding:18px; width:280px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+    <div id="em-title" style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:12px; text-transform:uppercase; letter-spacing:1px;">Edit Position</div>
+    <div class="frow" id="em-entry-row">
+      <div class="flabel">Entry Price</div>
+      <input class="finput" id="em-entry" type="number" step="0.01">
+    </div>
+    <div class="frow" id="em-tp-row">
+      <div class="flabel">Take Profit</div>
+      <input class="finput" id="em-tp" type="number" step="0.01">
+    </div>
+    <div class="frow" id="em-sl-row">
+      <div class="flabel">Stop Loss</div>
+      <input class="finput" id="em-sl" type="number" step="0.01">
+    </div>
+    <div class="frow" id="em-price-row" style="display:none;">
+      <div class="flabel">Price</div>
+      <input class="finput" id="em-price" type="number" step="0.01">
+    </div>
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button id="em-cancel" style="flex:1; padding:6px; border:1px solid var(--border); border-radius:3px; background:transparent; color:var(--text1); font-family:var(--font); cursor:pointer; font-size:10px;">CANCEL</button>
+      <button id="em-save" style="flex:1; padding:6px; border:none; border-radius:3px; background:var(--accent); color:#000; font-family:var(--font); cursor:pointer; font-weight:700; font-size:10px;">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- INDICATOR MODAL -->
+<div id="indicator-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1100; align-items:center; justify-content:center;">
+  <div style="background:var(--bg1); border:1px solid var(--border2); border-radius:6px; padding:18px; width:280px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+    <div id="ind-modal-title" style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:12px; text-transform:uppercase; letter-spacing:1px;">Add Indicator</div>
+    
+    <div class="frow">
+      <div class="flabel">Indicator Type</div>
+      <select class="finput" id="ind-type-select" style="background:var(--bg2); color:var(--text0); border:1px solid var(--border);">
+        <option value="sma">Simple Moving Average (SMA)</option>
+        <option value="ema">Exponential Moving Average (EMA)</option>
+        <option value="sr">Support & Resistance (Pivots)</option>
+        <option value="ob">Order Blocks with Volume</option>
+        <option value="pob">Power Order Blocks [ChartPrime]</option>
+      </select>
+    </div>
+    
+    <div class="frow" id="ind-len-row">
+      <div class="flabel" id="ind-len-label">Length</div>
+      <input class="finput" id="ind-length" type="number" value="20" min="2" max="500">
+    </div>
+    
+    <div class="frow" id="ind-color-row">
+      <div class="flabel">Color</div>
+      <input class="finput" id="ind-color" type="color" value="#ff9100" style="padding:2px; height:26px;">
+    </div>
+    
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button id="ind-cancel" style="flex:1; padding:6px; border:1px solid var(--border); border-radius:3px; background:transparent; color:var(--text1); font-family:var(--font); cursor:pointer; font-size:10px;">CANCEL</button>
+      <button id="ind-save" style="flex:1; padding:6px; border:none; border-radius:3px; background:var(--accent); color:#000; font-family:var(--font); cursor:pointer; font-weight:700; font-size:10px;">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/loader.js"></script>
+<script src="js/replay.js"></script>
+<script src="js/indicators.js"></script>
+<script src="js/scripting.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/drawings.js"></script>
+<script src="js/trading.js"></script>
+<script src="js/topbar.js"></script>
+<script src="js/interaction.js"></script>
+</body>
+</html>
