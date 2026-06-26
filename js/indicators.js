@@ -593,10 +593,12 @@ function drawIndicators(ctx, vis, r) {
       ctx.setLineDash([]);
       ctx.beginPath();
       var first = true;
+      var s = Math.max(0, Math.floor(S.viewStart));
       for (var i = 0; i < vis.length; i++) {
-        var gidx = S.viewStart + i;
+        var gidx = s + i;
         if (gidx < valArr.length && valArr[gidx] !== null) {
-          var x = cxPos(i);
+          var li = gidx - S.viewStart;
+          var x = cxPos(li);
           var y = p2y(valArr[gidx], r);
           if (first) {
             ctx.moveTo(x, y);

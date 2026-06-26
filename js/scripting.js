@@ -303,10 +303,12 @@ function drawEquityCurve(ctx, vis, r) {
   ctx.lineWidth = 1.8;
   ctx.beginPath();
   var first = true;
+  var s = Math.max(0, Math.floor(S.viewStart));
   for (var i = 0; i < vis.length; i++) {
-    var gidx = S.viewStart + i;
+    var gidx = s + i;
     if (gidx < eq.length) {
-      var x = cxPos(i);
+      var li = gidx - S.viewStart;
+      var x = cxPos(li);
       var bal = eq[gidx].balance;
       var y = boxY + boxH - ((bal - minBal) / (maxBal - minBal) * (boxH - 10)) - 5;
       if (first) {
@@ -329,7 +331,7 @@ function drawEquityCurve(ctx, vis, r) {
   var mx = S.mouseX;
   if (mx >= 0 && mx < CW) {
     var vi = x2vi(mx);
-    var gidx = S.viewStart + vi;
+    var gidx = Math.floor(S.viewStart + vi);
     if (gidx >= 0 && gidx < eq.length) {
       var bal = eq[gidx].balance;
       ctx.textAlign = 'right';

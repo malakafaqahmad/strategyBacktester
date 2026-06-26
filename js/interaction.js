@@ -11,8 +11,8 @@ OC.addEventListener('mousemove', function(e){
     var startPrice = y2p(S.dragStartY, r);
     var priceDiff = mousePrice - startPrice;
     
-    var currentVi = x2vi(S.mouseX) + S.viewStart;
-    var startVi = x2vi(S.dragStartX) + S.viewStart;
+    var currentVi = Math.floor(x2vi(S.mouseX) + S.viewStart);
+    var startVi = Math.floor(x2vi(S.dragStartX) + S.viewStart);
     var gidxDiff = currentVi - startVi;
     
     var d = S.dragTarget;
@@ -43,8 +43,14 @@ OC.addEventListener('mousemove', function(e){
   }
 
   if(S.dragging){
-    var dx=S.mouseX-S.dragX0, cw2=CW/S.viewCount, shift=-Math.round(dx/cw2);
+    var dx=S.mouseX-S.dragX0, cw2=CW/S.viewCount, shift=-dx/cw2;
     S.viewStart=clampVS(S.dragVS0+shift);
+
+    var dy = S.mouseY - S.dragY0;
+    var vis = getVisible();
+    var r_unpanned = priceRangeUnpanned(vis);
+    var pricePerPixel = (r_unpanned.mx - r_unpanned.mn) / CH;
+    S.pricePanOffset = S.dragPriceOffset0 + dy * pricePerPixel;
   }
 
   // hover drawings
@@ -89,7 +95,7 @@ OC.addEventListener('mousemove', function(e){
 OC.addEventListener('mousedown', function(e){
   if(e.button!==0) return;
   var vis=getVisible(),r=priceRange(vis);
-  var vi=x2vi(S.mouseX)+S.viewStart;
+  var vi=Math.floor(x2vi(S.mouseX)+S.viewStart);
   var price=y2p(S.mouseY,r);
   var tool=S.activeTool;
   
@@ -106,8 +112,13 @@ OC.addEventListener('mousedown', function(e){
       S.dragStartWidth = S.hoverDraw.width;
       return;
     }
-    S.dragging=true; S.dragX0=S.mouseX; S.dragVS0=S.viewStart;
-    OC.style.cursor='grabbing'; return;
+    S.dragging=true;
+    S.dragX0=S.mouseX;
+    S.dragY0=S.mouseY;
+    S.dragVS0=S.viewStart;
+    S.dragPriceOffset0=S.pricePanOffset||0;
+    OC.style.cursor='grabbing';
+    return;
   }
   if(tool==='hline'){ S.drawings.push({type:'hline',price:price,col:'#00d4ff'}); activateTool('cursor'); render(); return; }
   if(tool==='vline'){ S.drawings.push({type:'vline',gidx:vi,col:'#00d4ff'}); activateTool('cursor'); render(); return; }
@@ -159,8 +170,15 @@ OC.addEventListener('mouseleave', function(){ S.mouseX=-1;S.mouseY=-1; S.dragTar
 
 OC.addEventListener('wheel', function(e){
   e.preventDefault();
+  var mouseX = S.mouseX;
+  var gidxUnderMouse = S.viewStart + (mouseX / CW) * S.viewCount;
+
   var factor=e.deltaY>0?1.12:0.88;
   S.viewCount=Math.round(clamp(S.viewCount*factor,8,Math.min(2000,S.allCandles.length||2000)));
+
+  if (mouseX >= 0 && mouseX < CW) {
+    S.viewStart = gidxUnderMouse - (mouseX / CW) * S.viewCount;
+  }
   S.viewStart=clampVS(S.viewStart);
   render();
 },{passive:false});
@@ -169,7 +187,9 @@ OC.addEventListener('contextmenu', function(e){
   e.preventDefault();
   var vis=getVisible(),r=priceRange(vis);
   S.ctxPrice=y2p(S.mouseY,r);
-  S.ctxCandle=vis[x2vi(S.mouseX)];
+  var gidx=Math.floor(x2vi(S.mouseX)+S.viewStart);
+  var src=visibleSource();
+  S.ctxCandle=(gidx>=0&&gidx<src.length)?src[gidx]:null;
   var del=document.getElementById('ctx-del');
   del.style.display=S.hoverDraw?'block':'none';
   var m=document.getElementById('ctx-menu');
@@ -192,8 +212,18 @@ document.addEventListener('keydown',function(e){
   if(e.key==='ArrowLeft'){ if(S.replayMode) stepReplay(-1); else { S.viewStart=clampVS(S.viewStart-5); render(); } }
   if(e.key==='ArrowRight'&&e.shiftKey){ stepReplay(10); }
   if(e.key===' '){ e.preventDefault(); if(S.replayMode) togglePlay(); }
-  if(e.key==='+'||e.key==='='){ S.viewCount=Math.max(8,S.viewCount-10); render(); }
-  if(e.key==='-'){ S.viewCount=Math.min(2000,S.viewCount+10); render(); }
+  if(e.key==='+'||e.key==='='){
+    var centerGidx = S.viewStart + S.viewCount / 2;
+    S.viewCount=Math.max(8,S.viewCount-10);
+    S.viewStart=clampVS(centerGidx - S.viewCount / 2);
+    render();
+  }
+  if(e.key==='-'){
+    var centerGidx = S.viewStart + S.viewCount / 2;
+    S.viewCount=Math.min(2000,S.viewCount+10);
+    S.viewStart=clampVS(centerGidx - S.viewCount / 2);
+    render();
+  }
   var tmap={v:'cursor',h:'hline',t:'tline',r:'rect',f:'fib',m:'measure',l:'long',s:'short'};
   if(tmap[e.key]&&!e.ctrlKey&&!e.metaKey){ activateTool(tmap[e.key]); }
 });
@@ -221,6 +251,7 @@ document.querySelectorAll('.tf-btn').forEach(function(btn){
     document.querySelectorAll('.tf-btn').forEach(function(b){b.classList.remove('active');});
     btn.classList.add('active');
     S.tf=parseInt(btn.dataset.tf);
+    S.pricePanOffset = 0; // reset vertical pan on TF switch
     if(S.rawMin.length){ buildTF(); S.replayCursor=Math.min(S.replayCursor,S.allCandles.length-1); S.viewStart=clampVS(S.viewStart); }
     document.getElementById('sb-tf').textContent=btn.textContent;
     render();
@@ -249,7 +280,15 @@ OC.addEventListener('dblclick', function(e){
   }
   if (clickedDraw) {
     openEditModal(clickedDraw);
+  } else {
+    S.pricePanOffset = 0; // Reset vertical pan on double-clicking empty canvas
+    render();
   }
+});
+// Reset vertical pan on price scale double-click
+PAC.addEventListener('dblclick', function(){
+  S.pricePanOffset = 0;
+  render();
 });
 
 function openEditModal(d) {

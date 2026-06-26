@@ -72,6 +72,7 @@ function finishLoad(raw) {
   S.replayCursor = Math.max(50, Math.floor(S.allCandles.length*0.2));
   S.replayMode = false;
   S.viewStart = Math.max(0, S.allCandles.length - S.viewCount);
+  S.pricePanOffset = 0; // reset vertical pan
   // populate date input with last candle date
   if(S.allCandles.length){
     var d = new Date(S.allCandles[S.allCandles.length-1].t*1000);

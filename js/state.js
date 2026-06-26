@@ -34,4 +34,5 @@ var S = {
   side: 'long',
   sessionPnl: 0, wins: 0, losses: 0,
   bestTrade: null, worstTrade: null, grossWin: 0, grossLoss: 0,
+  pricePanOffset: 0,   // vertical price offset for panning
 };

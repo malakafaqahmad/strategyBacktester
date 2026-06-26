@@ -23,7 +23,16 @@ function toDatetimeLocal(d){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 }
 function clamp(v,a,b){ return Math.min(Math.max(v,a),b); }
-function clampVS(vs){ return Math.max(0, Math.min(vs, Math.max(0,(visibleSource().length)-S.viewCount))); }
+function clampVS(vs){
+  var len = visibleSource().length;
+  if (!len) return 0;
+  var minVs = -S.viewCount + 10;
+  var maxVs = len - 10;
+  if (minVs > maxVs) {
+    return clamp(vs, 0, Math.max(0, len - S.viewCount));
+  }
+  return clamp(vs, minVs, maxVs);
+}
 
 // ═══════════════════════════════════════════════════════
 //  INIT

@@ -22,12 +22,20 @@ window.addEventListener('resize', resize);
 // ═══════════════════════════════════════════════════════
 //  COORDINATE HELPERS
 // ═══════════════════════════════════════════════════════
-function priceRange(candles){
+function priceRangeUnpanned(candles){
   if(!candles.length) return {mn:0,mx:1};
   var mn=Infinity,mx=-Infinity;
   for(var i=0;i<candles.length;i++){ if(candles[i].l<mn)mn=candles[i].l; if(candles[i].h>mx)mx=candles[i].h; }
   var pad=(mx-mn)*0.08||mx*0.04;
   return {mn:mn-pad,mx:mx+pad};
+}
+function priceRange(candles){
+  var r = priceRangeUnpanned(candles);
+  if(S.pricePanOffset) {
+    r.mn += S.pricePanOffset;
+    r.mx += S.pricePanOffset;
+  }
+  return r;
 }
 function p2y(p,r){ return CH-(p-r.mn)/(r.mx-r.mn)*CH; }
 function y2p(y,r){ return r.mn+(1-y/CH)*(r.mx-r.mn); }
@@ -37,7 +45,7 @@ function x2vi(x){ return Math.floor(x/(CW/S.viewCount)); }
 // global index → local visible index → x
 function gidx2x(gidx, vis){
   var li = gidx - S.viewStart;
-  if(li<0||li>=vis.length) return null;
+  if(li<0||li>=S.viewCount) return null;
   return cxPos(li);
 }
 function gidx2x_any(gidx) {
@@ -80,8 +88,11 @@ function drawCandles(vis,r){
   }
 
   var cw=CW/S.viewCount, bw=Math.max(1,cw*0.7);
+  var s = Math.max(0, Math.floor(S.viewStart));
   for(var i=0;i<vis.length;i++){
-    var c=vis[i], x=cxPos(i), up=c.c>=c.o;
+    var gidx = s + i;
+    var li = gidx - S.viewStart;
+    var c=vis[i], x=cxPos(li), up=c.c>=c.o;
     var col=up?'#00e676':'#ff1744';
     var bt=p2y(Math.max(c.o,c.c),r), bb=p2y(Math.min(c.o,c.c),r), bh=Math.max(1,bb-bt);
     cx.strokeStyle=col; cx.lineWidth=1;
@@ -97,8 +108,11 @@ function drawCandles(vis,r){
   // Time labels
   cx.fillStyle='rgba(74,85,128,0.7)'; cx.font='9px Courier New,monospace'; cx.textAlign='center';
   var every=Math.max(1,Math.floor(vis.length/7));
+  var s = Math.max(0, Math.floor(S.viewStart));
   for(var i=0;i<vis.length;i+=every){
-    cx.fillText(fmtTimeAxis(vis[i].t), cxPos(i), CH-3);
+    var gidx = s + i;
+    var li = gidx - S.viewStart;
+    cx.fillText(fmtTimeAxis(vis[i].t), cxPos(li), CH-3);
   }
 
   // Last price dashed line
@@ -154,8 +168,11 @@ function drawVolume(vis){
   for(var i=0;i<vis.length;i++) if(vis[i].v>maxV) maxV=vis[i].v;
   if(!maxV) return;
   var cw=CW/S.viewCount, bw=Math.max(1,cw*0.7);
+  var s = Math.max(0, Math.floor(S.viewStart));
   for(var i=0;i<vis.length;i++){
-    var c=vis[i], x=cxPos(i), h=(c.v/maxV)*(VAH-8);
+    var gidx = s + i;
+    var li = gidx - S.viewStart;
+    var c=vis[i], x=cxPos(li), h=(c.v/maxV)*(VAH-8);
     vx.fillStyle=c.c>=c.o?'rgba(0,230,118,0.3)':'rgba(255,23,68,0.3)';
     vx.fillRect(x-bw/2,VAH-h,bw,h);
   }
@@ -182,14 +199,23 @@ function drawOverlay(vis,r){
     ox.fillText(fmtP(hp),64,my+4);
     // OHLCV
     var vi2=x2vi(mx);
-    if(vi2>=0&&vi2<vis.length){
-      var c=vis[vi2];
+    var gidx=Math.floor(vi2+S.viewStart);
+    var src=visibleSource();
+    if(gidx>=0&&gidx<src.length){
+      var c=src[gidx];
       document.getElementById('ci-o').textContent=fmtP(c.o);
       document.getElementById('ci-h').textContent=fmtP(c.h);
       document.getElementById('ci-l').textContent=fmtP(c.l);
       document.getElementById('ci-c').textContent=fmtP(c.c);
       document.getElementById('ci-v').textContent=c.v.toFixed(2);
       document.getElementById('ci-date').textContent=fmtDate(c.t);
+    } else {
+      document.getElementById('ci-o').textContent='—';
+      document.getElementById('ci-h').textContent='—';
+      document.getElementById('ci-l').textContent='—';
+      document.getElementById('ci-c').textContent='—';
+      document.getElementById('ci-v').textContent='—';
+      document.getElementById('ci-date').textContent='—';
     }
   }
 
